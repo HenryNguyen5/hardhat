@@ -1,3 +1,4 @@
+import { assert } from "chai";
 import { resetHardhatContext } from "hardhat/plugins-testing";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import path from "path";
@@ -13,7 +14,7 @@ declare module "mocha" {
 
 export function useEnvironment(
   fixtureProjectName: string,
-  networkName = "localhost"
+  networkName = "hardhat"
 ) {
   beforeEach("Loading hardhat environment", function () {
     process.chdir(path.join(__dirname, "fixture-projects", fixtureProjectName));
@@ -25,4 +26,36 @@ export function useEnvironment(
   afterEach("Resetting hardhat", function () {
     resetHardhatContext();
   });
+}
+
+export function usePersistentEnvironment(
+  fixtureProjectName: string,
+  networkName = "hardhat"
+) {
+  before("Loading hardhat environment", function () {
+    process.chdir(path.join(__dirname, "fixture-projects", fixtureProjectName));
+    process.env.HARDHAT_NETWORK = networkName;
+
+    this.env = require("hardhat");
+  });
+
+  after("Resetting hardhat", function () {
+    resetHardhatContext();
+  });
+}
+
+export function assertWithin(
+  value: number | bigint,
+  min: number | bigint,
+  max: number | bigint
+) {
+  if (value < min || value > max) {
+    assert.fail(`Expected ${value} to be between ${min} and ${max}`);
+  }
+}
+
+export function assertIsNotNull<T>(
+  value: T
+): asserts value is Exclude<T, null> {
+  assert.isNotNull(value);
 }

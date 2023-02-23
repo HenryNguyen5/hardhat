@@ -1,18 +1,16 @@
-import type {
-  providers,
-  utils as EthersUtils,
-  Contract,
-  Transaction,
-} from "ethers";
+import type EthersT from "ethers";
+// eslint-disable-next-line no-duplicate-imports
+import type { Contract, Transaction } from "ethers";
 import { AssertionError } from "chai";
 import util from "util";
 import ordinal from "ordinal";
 
 import { AssertWithSsfi, buildAssert, Ssfi } from "../utils";
+import { ASSERTION_ABORTED } from "./constants";
 
-type EventFragment = EthersUtils.EventFragment;
-type Interface = EthersUtils.Interface;
-type Provider = providers.Provider;
+type EventFragment = EthersT.EventFragment;
+type Interface = EthersT.Interface;
+type Provider = EthersT.Provider;
 
 export const EMIT_CALLED = "emitAssertionCalled";
 
@@ -20,7 +18,7 @@ async function waitForPendingTransaction(
   tx: Promise<Transaction> | Transaction | string,
   provider: Provider
 ) {
-  let hash: string | undefined;
+  let hash: string | null;
   if (tx instanceof Promise) {
     ({ hash } = await tx);
   } else if (typeof tx === "string") {
@@ -28,7 +26,7 @@ async function waitForPendingTransaction(
   } else {
     ({ hash } = tx);
   }
-  if (hash === undefined) {
+  if (hash === null) {
     throw new Error(`${JSON.stringify(tx)} is not a valid transaction`);
   }
   return provider.waitForTransaction(hash);
@@ -47,28 +45,34 @@ export function supportEmit(
 
       const promise = this.then === undefined ? Promise.resolve() : this;
 
-      const onSuccess = (receipt: providers.TransactionReceipt) => {
+      const onSuccess = (receipt: EthersT.TransactionReceipt) => {
+        // abort if the assertion chain was aborted, for examble because
+        // a `.not` was combined with a `.withArgs`
+        if (chaiUtils.flag(this, ASSERTION_ABORTED) === true) {
+          return;
+        }
+
         const assert = buildAssert(negated, onSuccess);
 
-        let eventFragment: EventFragment | undefined;
+        let eventFragment: EventFragment | null = null;
         try {
           eventFragment = contract.interface.getEvent(eventName);
         } catch (e) {
           // ignore error
         }
 
-        if (eventFragment === undefined) {
+        if (eventFragment === null) {
           throw new AssertionError(
             `Event "${eventName}" doesn't exist in the contract`
           );
         }
 
-        const topic = contract.interface.getEventTopic(eventFragment);
+        const topic = eventFragment.topicHash;
+        const contractAddress = contract.target as string;
         this.logs = receipt.logs
           .filter((log) => log.topics.includes(topic))
           .filter(
-            (log) =>
-              log.address.toLowerCase() === contract.address.toLowerCase()
+            (log) => log.address.toLowerCase() === contractAddress.toLowerCase()
           );
 
         assert(
@@ -80,9 +84,17 @@ export function supportEmit(
         chaiUtils.flag(this, "contract", contract);
       };
 
-      const derivedPromise = promise
-        .then(() => waitForPendingTransaction(tx, contract.provider))
-        .then(onSuccess);
+      const provider: any = require("hardhat").ethers.provider;
+      const derivedPromise = promise.then(() => {
+        // abort if the assertion chain was aborted, for examble because
+        // a `.not` was combined with a `.withArgs`
+        if (chaiUtils.flag(this, ASSERTION_ABORTED) === true) {
+          return;
+        }
+        return waitForPendingTransaction(tx, provider).then((receipt) => {
+          return onSuccess(receipt!);
+        });
+      });
 
       chaiUtils.flag(this, EMIT_CALLED, true);
 
@@ -124,11 +136,10 @@ function assertArgsArraysEqual(
   assert: AssertWithSsfi,
   ssfi: Ssfi
 ) {
-  const { utils } = require("ethers") as { utils: typeof EthersUtils };
-
+  const ethers = require("ethers") as typeof EthersT;
   const actualArgs = (
     chaiUtils.flag(context, "contract").interface as Interface
-  ).parseLog(log).args;
+  ).parseLog(log)!.args;
   const eventName = chaiUtils.flag(context, "eventName");
   assert(
     actualArgs.length === expectedArgs.length,
@@ -159,7 +170,7 @@ function assertArgsArraysEqual(
       }
     } else if (expectedArgs[index] instanceof Uint8Array) {
       new Assertion(actualArgs[index], undefined, ssfi, true).equal(
-        utils.hexlify(expectedArgs[index])
+        ethers.hexlify(expectedArgs[index])
       );
     } else if (
       expectedArgs[index]?.length !== undefined &&
@@ -184,10 +195,10 @@ function assertArgsArraysEqual(
           expectedArgs[index],
           "The actual value was an indexed and hashed value of the event argument. The expected value provided to the assertion should be the actual event argument (the pre-image of the hash). You provided the hash itself. Please supply the the actual event argument (the pre-image of the hash) instead."
         );
-        const expectedArgBytes = utils.isHexString(expectedArgs[index])
-          ? utils.arrayify(expectedArgs[index])
-          : utils.toUtf8Bytes(expectedArgs[index]);
-        const expectedHash = utils.keccak256(expectedArgBytes);
+        const expectedArgBytes = ethers.isHexString(expectedArgs[index])
+          ? ethers.toBeArray(expectedArgs[index])
+          : ethers.toUtf8Bytes(expectedArgs[index]);
+        const expectedHash = ethers.keccak256(expectedArgBytes);
         new Assertion(actualArgs[index].hash, undefined, ssfi, true).to.equal(
           expectedHash,
           `The actual value was an indexed and hashed value of the event argument. The expected value provided to the assertion was hashed to produce ${expectedHash}. The actual hash and the expected hash did not match`

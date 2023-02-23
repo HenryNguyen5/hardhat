@@ -1,5 +1,5 @@
 import { expect, AssertionError } from "chai";
-import { BigNumber, Contract, ethers } from "ethers";
+import { ethers } from "ethers";
 
 import { anyUint, anyValue } from "../src/withArgs";
 
@@ -8,8 +8,8 @@ import { useEnvironment, useEnvironmentWithNode } from "./helpers";
 import "../src/internal/add-chai-matchers";
 
 describe(".to.emit (contract events)", () => {
-  let contract: Contract;
-  let otherContract: Contract;
+  let contract: any;
+  let otherContract: any;
 
   describe("with the in-process hardhat network", function () {
     useEnvironment("hardhat-project");
@@ -30,7 +30,7 @@ describe(".to.emit (contract events)", () => {
       ).deploy();
       contract = await (
         await this.hre.ethers.getContractFactory("Events")
-      ).deploy(otherContract.address);
+      ).deploy(otherContract.target);
     });
 
     it("Should fail when expecting an event that's not in the contract", async function () {
@@ -124,13 +124,9 @@ describe(".to.emit (contract events)", () => {
       });
 
       const string1 = "string1";
-      const string1Bytes = ethers.utils.hexlify(
-        ethers.utils.toUtf8Bytes(string1)
-      );
+      const string1Bytes = ethers.hexlify(ethers.toUtf8Bytes(string1));
       const string2 = "string2";
-      const string2Bytes = ethers.utils.hexlify(
-        ethers.utils.toUtf8Bytes(string2)
-      );
+      const string2Bytes = ethers.hexlify(ethers.toUtf8Bytes(string2));
 
       // for abbreviating long strings in diff views like chai does:
       function abbrev(longString: string): string {
@@ -138,7 +134,7 @@ describe(".to.emit (contract events)", () => {
       }
 
       function hash(s: string): string {
-        return ethers.utils.keccak256(s);
+        return ethers.keccak256(s);
       }
 
       describe("with a string argument", function () {
@@ -264,8 +260,8 @@ describe(".to.emit (contract events)", () => {
         });
       });
 
-      const string1Bytes32 = ethers.utils.zeroPad(string1Bytes, 32);
-      const string2Bytes32 = ethers.utils.zeroPad(string2Bytes, 32);
+      const string1Bytes32 = ethers.zeroPadValue(string1Bytes, 32);
+      const string2Bytes32 = ethers.zeroPadValue(string2Bytes, 32);
       describe("with a bytes32 argument", function () {
         it("Should match the argument", async function () {
           await expect(contract.emitBytes32(string1Bytes32))
@@ -281,8 +277,8 @@ describe(".to.emit (contract events)", () => {
           ).to.be.eventually.rejectedWith(
             AssertionError,
             `expected '${abbrev(
-              ethers.utils.hexlify(string2Bytes32)
-            )}' to equal '${abbrev(ethers.utils.hexlify(string1Bytes32))}'`
+              ethers.hexlify(string2Bytes32)
+            )}' to equal '${abbrev(ethers.hexlify(string1Bytes32))}'`
           );
         });
       });
@@ -302,8 +298,8 @@ describe(".to.emit (contract events)", () => {
           ).to.be.eventually.rejectedWith(
             AssertionError,
             `expected '${abbrev(
-              ethers.utils.hexlify(string2Bytes32)
-            )}' to equal '${abbrev(ethers.utils.hexlify(string1Bytes32))}'`
+              ethers.hexlify(string2Bytes32)
+            )}' to equal '${abbrev(ethers.hexlify(string1Bytes32))}'`
           );
         });
 
@@ -319,12 +315,6 @@ describe(".to.emit (contract events)", () => {
           await expect(contract.emitUintArray(1, 2))
             .to.emit(contract, "WithUintArray")
             .withArgs([1, 2]);
-        });
-
-        it("Should succeed when expectations are met with BigNumber", async function () {
-          await expect(contract.emitUintArray(1, 2))
-            .to.emit(contract, "WithUintArray")
-            .withArgs([BigInt(1), BigNumber.from(2)]);
         });
 
         it("Should fail when expectations are not met", async function () {

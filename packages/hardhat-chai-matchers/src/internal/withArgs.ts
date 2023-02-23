@@ -1,6 +1,7 @@
 import { AssertionError } from "chai";
 
 import { isBigNumber, normalizeToBigInt } from "hardhat/common";
+import { ASSERTION_ABORTED } from "./constants";
 
 import { emitWithArgs, EMIT_CALLED } from "./emit";
 import {
@@ -52,6 +53,9 @@ export function supportWithArgs(
 ) {
   Assertion.addMethod("withArgs", function (this: any, ...expectedArgs: any[]) {
     if (Boolean(this.__flags.negate)) {
+      utils.flag(this, ASSERTION_ABORTED, true);
+      // discard subject since it could potentially be a rejected promise
+      Promise.resolve(this._obj).catch(() => {});
       throw new Error("Do not combine .not. with .withArgs()");
     }
 
@@ -60,11 +64,17 @@ export function supportWithArgs(
       utils.flag(this, REVERTED_WITH_CUSTOM_ERROR_CALLED) === true;
 
     if (!emitCalled && !revertedWithCustomErrorCalled) {
+      utils.flag(this, ASSERTION_ABORTED, true);
+      // discard subject since it could potentially be a rejected promise
+      Promise.resolve(this._obj).catch(() => {});
       throw new Error(
         "withArgs can only be used in combination with a previous .emit or .revertedWithCustomError assertion"
       );
     }
     if (emitCalled && revertedWithCustomErrorCalled) {
+      utils.flag(this, ASSERTION_ABORTED, true);
+      // discard subject since it could potentially be a rejected promise
+      Promise.resolve(this._obj).catch(() => {});
       throw new Error(
         "withArgs called with both .emit and .revertedWithCustomError, but these assertions cannot be combined"
       );

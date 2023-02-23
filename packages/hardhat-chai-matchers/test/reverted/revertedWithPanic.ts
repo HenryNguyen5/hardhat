@@ -1,5 +1,4 @@
 import { AssertionError, expect } from "chai";
-import { BigNumber } from "ethers";
 import { ProviderError } from "hardhat/internal/core/providers/errors";
 import path from "path";
 import util from "util";
@@ -267,15 +266,6 @@ describe("INTEGRATION: Reverted with panic", function () {
           matchers,
           method: "succeeds",
           successfulAssert: (x) => expect(x).not.to.be.revertedWithPanic("1"),
-        });
-      });
-
-      it("ethers's BigNumber", async function () {
-        await runSuccessfulAsserts({
-          matchers,
-          method: "succeeds",
-          successfulAssert: (x) =>
-            expect(x).not.to.be.revertedWithPanic(BigNumber.from(1)),
         });
       });
     });
