@@ -439,7 +439,7 @@ impl StateDebug for LayeredState<RethnetLayer> {
             return Ok(());
         }
 
-        let layer_id = self.stack.iter().enumerate().find_map(|(layer_id, layer)| {
+        let inverted_layer_id = self.iter().enumerate().find_map(|(layer_id, layer)| {
             if layer.state_root.unwrap() == *state_root {
                 Some(layer_id)
             } else {
@@ -447,8 +447,9 @@ impl StateDebug for LayeredState<RethnetLayer> {
             }
         });
 
-        if let Some(layer_id) = layer_id {
-            self.stack.truncate(layer_id + 1);
+        if let Some(inverted_layer_id) = inverted_layer_id {
+            let layer_id = self.last_layer_id() - inverted_layer_id;
+            self.revert_to_layer(layer_id);
 
             Ok(())
         } else {
